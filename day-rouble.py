@@ -76,8 +76,12 @@ def load_data_from_file(username):
     if os.path.exists(filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
+                data = json.load(f)
+                if not isinstance(data, dict):
+                    raise ValueError("Некорректный формат данных.")
+                return data
+        except (json.JSONDecodeError, FileNotFoundError, ValueError) as e:
+            st.error(f"Ошибка загрузки данных: {e}")
             return {category: 0 for category in ALL_PRODUCT_CATEGORIES}
     return {category: 0 for category in ALL_PRODUCT_CATEGORIES}
 
