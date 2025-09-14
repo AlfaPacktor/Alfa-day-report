@@ -68,7 +68,7 @@ def set_styles():
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С ФАЙЛАМИ ---
 def get_user_data_file(username):
-    safe_username = "".join(c for c in username if c.isalnum() or c in (' ', '_')).rstrip()
+    safe_username = "".join(c for c in username if c.isalnum() or c in (' ', '-')).strip()
     return f"data_{safe_username}.json"
 
 def load_data_from_file(username):
@@ -89,7 +89,7 @@ def save_data_to_file(username, data):
 # --- УПРАВЛЕНИЕ СОСТОЯНИЕМ ---
 def initialize_state():
     if 'view' not in st.session_state:
-        st.session_state['view'] = 'main_menu'
+        st.session_state['view'] = 'main'
     if 'current_product' not in st.session_state:
         st.session_state['current_product'] = None
 
@@ -98,17 +98,17 @@ def go_to_menu(menu_name):
     st.session_state['view'] = menu_name
 
 def go_to_main_menu():
-    st.session_state['view'] = 'main_menu'
+    st.session_state['view'] = 'main'
 
 def go_to_input(product_name):
-    st.session_state['view'] = 'input_form'
+    st.session_state['view'] = 'input'
     st.session_state['current_product'] = product_name
 
 def go_to_report():
     st.session_state['view'] = 'report'
 
 def go_to_rubles_report():
-    st.session_state['view'] = 'calculate_rubles'
+    st.session_state['view'] = 'report_rubles'
 
 def reset_data():
     fresh_data = {category: 0 for category in ALL_PRODUCT_CATEGORIES}
@@ -122,7 +122,7 @@ def display_login_screen(cookies):
     st.header("Добро пожаловать в калькулятор!")
     st.subheader("Пожалуйста, представьтесь, чтобы мы могли сохранить ваши данные.")
     
-    username = st.text_input("Введите ваше имя (например, Иванов Иван):", key="login_input")
+    username = st.text_input("Введите ваше имя (например, Иван Иванов):", key="login_input")
     
     if st.button("Войти", key="login_button"):
         if username:
@@ -131,152 +131,145 @@ def display_login_screen(cookies):
             st.rerun()
         else:
             st.warning("Пожалуйста, введите имя.")
-
-def display_main_menu():
-    """Отображает кнопки главного меню."""
+            def display_main_menu():
+    """Displays the main menu buttons."""
     st.header("Основное меню")
     col1, col2 = st.columns(2)
+    # Using the unified set_view function for navigation.
     with col1:
-        st.button("ДК", on_click=go_to_menu, args=("ДК",), key="dk_menu")
-        st.button("Селфи", on_click=go_to_menu, args=("Селфи",), key="selfie_menu")
+        st.button("ДК", on_click=set_view, args=("ДК",), key="dk_menu")
+        st.button("Селфи", on_click=set_view, args=("Селфи",), key="selfie_menu")
     with col2:
-        st.button("КК", on_click=go_to_menu, args=("КК",), key="kk_menu")
-        st.button("МП", on_click=go_to_menu, args=("МП",), key="mp_menu")
-    st.button("Сформировать отчет", on_click=go_to_report)
+        st.button("КК", on_click=set_view, args=("КК",), key="kk_menu")
+        st.button("МП", on_click=set_view, args=("МП",), key="mp_menu")
+    st.button("Сформировать отчет", on_click=set_view, args=('report',))
 
 def display_submenu(menu_key, title):
-    """Отображает кнопки подменю."""
+    """Displays a submenu based on the provided key."""
     st.header(title)
     for product in MENUS[menu_key]:
-        st.button(product, key=f"{menu_key}_{product}", on_click=go_to_input, args=(product,))
-    st.button("Вернуться в основное меню", key=f"back_{menu_key}", on_click=go_to_main_menu)
+        st.button(product, key=f"{menu_key}_{product}", on_click=set_view, args=('input', product))
+    st.button("Вернуться в основное меню", key=f"back_{menu_key}", on_click=set_view, args=('main',))
 
 def display_input_form():
-    """Отображает форму для ввода количества продукта."""
+    """Displays the form for product quantity input."""
     product = st.session_state['current_product']
     st.header(f"Ввод данных для: {product}")
-    quantity = st.number_input("Введите количество:", min_value=0, step=1, key=f"input_{product}")
-    if st.button("Добавить", key=f"add_{product}"):
-        if 'data' not in st.session_state:
-            st.session_state['data'] = {category: 0 for category in ALL_PRODUCT_CATEGORIES}
-        st.session_state['data'][product] = st.session_state['data'].get(product, 0) + quantity
-        save_data_to_file(st.session_state['username'], st.session_state['data'])
-        st.success(f"Добавлено: {quantity} к '{product}'. Возврат в главное меню.")
-        go_to_main_menu()
-        st.rerun()
+    
+    # Using a form to group input and button.
+    with st.form(key=f"form_{product}"):
+        quantity = st.number_input("Введите количество:", min_value=0, step=1, key=f"input_{product}")
+        submitted = st.form_submit_button("Добавить")
+        
+        if submitted:
+            # defaultdict simplifies adding new values.
+            st.session_state['data'][product] += quantity
+            save_data_to_file(st.session_state['username'], st.session_state['data'])
+            st.success(f"Добавлено: {quantity} к '{product}'.")
+            set_view('main')
+            st.rerun()
 
 def display_report():
-    """Отображает итоговый отчет."""
+    """Displays the final report of product counts."""
     st.header("Отчет")
+    data = st.session_state.get('data', defaultdict(int))
     
-    report_lines = []
-    # Мы проходимся по нашему главному списку продуктов, чтобы порядок всегда был одинаковый
-    for i, product in enumerate(ALL_PRODUCT_CATEGORIES, 1):
-        # Вежливо и безопасно спрашиваем у памяти, какое количество для этого продукта записано.
-        # Если ничего нет, считаем, что это 0.
-        count = st.session_state.get('data', {}).get(product, 0)
-        if count > 0: # Показываем только те продукты, которые были добавлены
-            report_lines.append(f"{i}. {product} - {count}")
+    # Using a list comprehension for cleaner code.
+    report_lines = [
+        f"{i}. {product} - {count}"
+        for i, product in enumerate(ALL_PRODUCT_CATEGORIES, 1)
+        if (count := data[product]) > 0
+    ]
 
-    # Выводим весь отчет как единый красивый текст
     if report_lines:
         st.markdown(f"<div class='report-text'>{'<br>'.join(report_lines)}</div>", unsafe_allow_html=True)
     else:
         st.info("Данных для отчета пока нет.")
 
-    st.markdown("<br>", unsafe_allow_html=True) # Небольшой отступ
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    # Кнопки для управления
     col1, col2, col3 = st.columns(3)
     with col1:
         st.button("Сбросить", on_click=reset_data)
     with col2:
-        st.button("Посчитать в рублях", on_click=go_to_rubles_report)
+        st.button("Посчитать в рублях", on_click=set_view, args=('report_rubles',))
     with col3:
-        st.button("Вернуться в меню", on_click=go_to_main_menu)
-
+        st.button("Вернуться в меню", on_click=set_view, args=('main',))
 
 def display_rubles_report():
-    """Отображает отчет, пересчитанный в рубли."""
+    """Displays the report converted to rubles."""
     st.header("Отчет в рублях")
+    data = st.session_state.get('data', defaultdict(int))
 
-    report_lines = []
-    total_rubles = 0
-
-    # Проходимся по всем продуктам, чтобы посчитать стоимость
-    for product in ALL_PRODUCT_CATEGORIES:
-        count = st.session_state.get('data', {}).get(product, 0)
-        if count > 0:
-            price = PRODUCT_PRICES.get(product, 0)
-            product_total = count * price
-            total_rubles += product_total
-            report_lines.append(f"{product} - {product_total} руб.")
+    # Filter for products with count > 0 first to avoid unnecessary calculations.
+    active_products = {p: c for p, c in data.items() if c > 0}
     
-    # Выводим отчет
-    if report_lines:
-        st.markdown(f"<div class='report-text'>{'<br>'.join(report_lines)}</div>", unsafe_allow_html=True)
-        st.markdown("<hr>") # Горизонтальная линия для разделения
-        st.markdown(f"<div class='report-text'><b>ИТОГО: {total_rubles} руб.</b></div>", unsafe_allow_html=True)
-    else:
+    if not active_products:
         st.info("Нет данных для расчета.")
+    else:
+        report_lines = [
+            f"{product} - {count * PRODUCT_PRICES.get(product, 0)} руб."
+            for product, count in active_products.items()
+        ]
+        total_rubles = sum(count * PRODUCT_PRICES.get(product, 0) for product, count in active_products.items())
+        
+        st.markdown(f"<div class='report-text'>{'<br>'.join(report_lines)}</div>", unsafe_allow_html=True)
+        st.markdown("<hr>")
+        st.markdown(f"<div class='report-text'><b>ИТОГО: {total_rubles} руб.</b></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-
-    # Кнопки навигации
+    
     col1, col2 = st.columns(2)
     with col1:
-        st.button("Вернуться", on_click=go_to_report, key="back_to_report")
+        st.button("Вернуться", on_click=set_view, args=('report',), key="back_to_report")
     with col2:
-        st.button("Вернуться в основное меню", on_click=go_to_main_menu, key="back_to_main_from_rubles")
+        st.button("Вернуться в основное меню", on_click=set_view, args=('main',), key="back_to_main_from_rubles")
 
-
-# --- ГЛАВНАЯ ЧАСТЬ ПРОГРАММЫ (НАШ "ДИРИЖЕР") ---
+# --- MAIN APPLICATION LOGIC ---
 def main():
-    """Основная функция, запускающая приложение."""
+    """Main function to run the Streamlit app."""
+    st.set_page_config(layout="centered")
     set_styles()
-    
     cookies = stx.CookieManager()
-    
-    username_from_cookie = cookies.get('username')
-    
+
+    # Initialize session state from cookie if not already set.
     if 'username' not in st.session_state:
-        st.session_state['username'] = username_from_cookie
-    
-    initialize_state()
+        st.session_state['username'] = cookies.get('username')
 
-    if st.session_state.get('username') is None:
+    # If no user is logged in, show the login screen.
+    if not st.session_state.get('username'):
         display_login_screen(cookies)
-    else:
-        if 'data_loaded' not in st.session_state:
-            st.session_state['data'] = load_data_from_file(st.session_state['username'])
-            st.session_state['data_loaded'] = True
-        
-        st.sidebar.success(f"Вы вошли как: {st.session_state['username']}")
-        if st.sidebar.button("Сменить пользователя"):
-            cookies.delete('username')
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
+        return
 
-        view = st.session_state.get('view', 'main_menu')
-        
-        if view == 'main_menu':
-            display_main_menu()
-        elif view == 'ДК':
-            display_submenu('ДК', 'Меню для ДК')
-        elif view == 'КК':
-            display_submenu('КК', 'Меню для КК')
-        elif view == 'Селфи':
-            display_submenu('Селфи', 'Меню для Селфи')
-        elif view == 'МП':
-            display_submenu('МП', 'Меню для МП')
-        elif view == 'input_form':
-            display_input_form()
-        elif view == 'report':
-            display_report()
-        elif view == 'calculate_rubles':
-            display_rubles_report()
+    # Load data only once after login.
+    if 'data' not in st.session_state:
+        st.session_state['data'] = load_data_from_file(st.session_state['username'])
 
-# --- КЛЮЧ ЗАЖИГАНИЯ ---
+    # User info and logout button in the sidebar for better UI.
+    st.sidebar.info(f"Вы вошли как: {st.session_state['username']}")
+    if st.sidebar.button("Сменить пользователя"):
+        cookies.delete('username')
+        # Clear the entire session state to ensure a clean login.
+        st.session_state.clear()
+        st.rerun()
+
+    # --- View Router ---
+    # A dictionary-based router is cleaner than multiple if/elif statements.
+    VIEWS = {
+        'main': display_main_menu,
+        'ДК': lambda: display_submenu('ДК', 'Меню для ДК'),
+        'КК': lambda: display_submenu('КК', 'Меню для КК'),
+        'Селфи': lambda: display_submenu('Селфи', 'Меню для Селфи'),
+        'МП': lambda: display_submenu('МП', 'Меню для МП'),
+        'input': display_input_form,
+        'report': display_report,
+        'report_rubles': display_rubles_report,
+    }
+    
+    current_view = st.session_state.get('view', 'main')
+    render_function = VIEWS.get(current_view, display_main_menu)
+    render_function()
+
+# --- APPLICATION ENTRY POINT ---
 if __name__ == "__main__":
     main()
