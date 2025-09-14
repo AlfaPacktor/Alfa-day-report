@@ -1,9 +1,10 @@
-# Initial code
+# Исправленный код
+
 import extra_streamlit_components as stx
 import streamlit as st
 import json
 import os
-import datetime
+from datetime import datetime, timedelta
 
 # --- СТРУКТУРЫ ДАННЫХ И КОНФИГУРАЦИЯ ---
 ALL_PRODUCT_CATEGORIES = [
@@ -98,133 +99,43 @@ def initialize_state():
     if 'current_product' not in st.session_state:
         st.session_state['current_product'] = None
 
-# --- ФУНКЦИИ-ПОМОЩНИКИ (Навигация) ---
-def go_to_menu(menu_name):
-    st.session_state['view'] = menu_name
-
-def go_to_main_menu():
-    st.session_state['view'] = 'main'
-
-def go_to_input(product_name):
-    st.session_state['view'] = 'input'
-    st.session_state['current_product'] = product_name
-
-def go_to_report():
-    st.session_state['view'] = 'report'
-
-def go_to_rubles_report():
-    st.session_state['view'] = 'report_rubles'
-
-def reset_data():
-    fresh_data = {category: 0 for category in ALL_PRODUCT_CATEGORIES}
-    st.session_state['data'] = fresh_data
-    save_data_to_file(st.session_state['username'], fresh_data)
-    go_to_main_menu()
-
 # --- ЛОГИКА ОТОБРАЖЕНИЯ ---
 def display_login_screen(cookies):
     """Отображает экран для ввода имени пользователя и устанавливает cookie."""
     st.header("Добро пожаловать в калькулятор!")
     st.subheader("Пожалуйста, представьтесь, чтобы мы могли сохранить ваши данные.")
     
-    username = st.text_input("Введите ваше имя (например, Иван):", key="login_input")
+    username = st.text_input("Введите ваше имя:", key="login_input")
     
     if st.button("Войти", key="login_button"):
         if username:
             st.session_state['username'] = username
-            cookies.set('username', username, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+            cookies.set('username', username, expires_at=(datetime.now() + timedelta(days=30)))
             st.experimental_rerun()
         else:
             st.warning("Пожалуйста, введите имя.")
 
 def display_main_menu():
-    """Displays the main menu buttons."""
+    """Отображает основное меню."""
     st.header("Основное меню")
     col1, col2 = st.columns(2)
     with col1:
-        st.button("ДК", on_click=go_to_menu, args=("ДК",), key="dk_menu")
-        st.button("Селфи", on_click=go_to_menu, args=("Селфи",), key="selfie_menu")
+        st.button("ДК", on_click=lambda: go_to_menu("ДК"))
+        st.button("Селфи", on_click=lambda: go_to_menu("Селфи"))
     with col2:
-        st.button("КК", on_click=go_to_menu, args=("КК",), key="kk_menu")
-        st.button("МП", on_click=go_to_menu, args=("МП",), key="mp_menu")
-    st.button("Сформировать отчет", on_click=go_to_report, key="report")
+        st.button("КК", on_click=lambda: go_to_menu("КК"))
+        st.button("МП", on_click=lambda: go_to_menu("МП"))
+    st.button("Сформировать отчет", on_click=go_to_report)
 
-def display_submenu(menu_key, title):
-    """Displays a submenu based on the provided key."""
-    st.header(title)
-    for product in MENUS[menu_key]:
-        st.button(product, key=f"{menu_key}_{product}", on_click=go_to_input, args=(product,))
-    st.button("Вернуться в основное меню", key=f"back_{menu_key}", on_click=go_to_main_menu)
+def go_to_menu(menu_name):
+    st.session_state['view'] = menu_name
 
-def display_input_form():
-    """Displays the form for product quantity input."""
-    product = st.session_state['current_product']
-    st.header(f"Ввод данных для: {product}")
-    
-    with st.form(key=f"form_{product}"):
-        quantity = st.number_input("Введите количество:", min_value=0, step=1, key=f"input_{product}")
-        submitted = st.form_submit_button("Добавить")
-        
-        if submitted:
-            st.session_state['data'][product] += quantity
-            save_data_to_file(st.session_state['username'], st.session_state['data'])
-            st.success(f"Добавлено: {quantity} к {product}.")
-            go_to_main_menu()
-            st.experimental_rerun()
+def go_to_report():
+    st.session_state['view'] = 'report'
 
-def display_report():
-    """Displays the final report of product counts."""
-    st.header("Отчет")
-    data = st.session_state.get('data', {category: 0 for category in ALL_PRODUCT_CATEGORIES})
-    
-    report_lines = [
-        f"{i}. {product} - {count}"
-        for i, product in enumerate(ALL_PRODUCT_CATEGORIES, 1)
-        if (count := data[product]) > 0
-    ]
-
-    if report_lines:
-        st.markdown(f"<div class='report-text'>{'<br>'.join(report_lines)}</div>", unsafe_allow_html=True)
-    else:
-        st.info("Данных для отчета пока нет.")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.button("Сбросить", on_click=reset_data)
-    with col2:
-        st.button("Посчитать в рублях", on_click=go_to_rubles_report)
-    with col3:
-        st.button("Вернуться в меню", on_click=go_to_main_menu)
-
-def display_rubles_report():
-    """Displays the report converted to rubles."""
-    st.header("Отчет в рублях")
-    data = st.session_state.get('data', {category: 0 for category in ALL_PRODUCT_CATEGORIES})
-
-    active_products = {p: c for p, c in data.items() if c > 0}
-    
-    if not active_products:
-        st.info("Нет данных для расчета.")
-    else:
-        report_lines = [
-            f"{product} - {count * PRODUCT_PRICES.get(product, 0)} руб."
-            for product, count in active_products.items()
-        ]
-        total_rubles = sum(count * PRODUCT_PRICES.get(product, 0) for product, count in active_products.items())
-        
-        st.markdown(f"<div class='report-text'>{'<br>'.join(report_lines)}</div>", unsafe_allow_html=True)
-        st.markdown("<hr>")
-        st.markdown(f"<div class='report-text'><b>ИТОГО: {total_rubles} руб.</b></div>", unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.button("Вернуться", on_click=go_to_report)
-    with col2:
-        st.button("Вернуться в основное меню", on_click=go_to_main_menu)
-
-# --- MAIN APPLICATION LOGIC ---
+# --- ОСНОВНАЯ ЛОГИКА ---
 def main():
-    """Main function to run the Streamlit app."""
+    """Главная функция запуска Streamlit-приложения."""
     st.set_page_config(layout="centered")
     set_styles()
     cookies = stx.CookieManager()
@@ -239,26 +150,14 @@ def main():
     if 'data' not in st.session_state:
         st.session_state['data'] = load_data_from_file(st.session_state['username'])
 
-    st.sidebar.text(f"Вы вошли как: {st.session_state['username']}")
+    st.sidebar.write(f"Вы вошли как: {st.session_state['username']}")
     if st.sidebar.button("Сменить пользователя"):
         cookies.delete('username')
         st.session_state.clear()
         st.experimental_rerun()
 
-    VIEWS = {
-        'main': display_main_menu,
-        'ДК': lambda: display_submenu('ДК', 'Меню для ДК'),
-        'КК': lambda: display_submenu('КК', 'Меню для КК'),
-        'Селфи': lambda: display_submenu('Селфи', 'Меню для Селфи'),
-        'МП': lambda: display_submenu('МП', 'Меню для МП'),
-        'input': display_input_form,
-        'report': display_report,
-        'report_rubles': display_rubles_report,
-    }
-    
-    current_view = st.session_state.get('view', 'main')
-    render_function = VIEWS.get(current_view, display_main_menu)
-    render_function()
+    if st.session_state['view'] == 'main':
+        display_main_menu()
 
 if __name__ == "__main__":
     main()
