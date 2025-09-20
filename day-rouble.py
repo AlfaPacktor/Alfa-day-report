@@ -1,5 +1,3 @@
-# Исправленный код
-
 import extra_streamlit_components as stx
 import streamlit as st
 import json
@@ -54,7 +52,6 @@ PRODUCT_PRICES = {
     "Мобильное Приложение": 310
 }
 
-
 # --- СТИЛИЗАЦИЯ (CSS) ---
 def set_styles():
     """Применяет CSS стили для оформления приложения."""
@@ -95,7 +92,7 @@ def save_data_to_file(username, data):
 # --- УПРАВЛЕНИЕ СОСТОЯНИЕМ ---
 def initialize_state():
     if 'view' not in st.session_state:
-        st.session_state['view'] = 'main'
+        st.session_state['view'] = "main_menu"
     if 'current_product' not in st.session_state:
         st.session_state['current_product'] = None
 
@@ -131,7 +128,7 @@ def go_to_menu(menu_name):
     st.session_state['view'] = menu_name
 
 def go_to_report():
-    st.session_state['view'] = 'report'
+    st.session_state['view'] = "report"
 
 # --- ОСНОВНАЯ ЛОГИКА ---
 def main():
@@ -143,20 +140,20 @@ def main():
     if 'username' not in st.session_state:
         st.session_state['username'] = cookies.get('username')
 
-    if not st.session_state.get('username'):
+    if not st.session_state['username']:
         display_login_screen(cookies)
         return
 
     if 'data' not in st.session_state:
         st.session_state['data'] = load_data_from_file(st.session_state['username'])
 
-    st.sidebar.write(f"Вы вошли как: {st.session_state['username']}")
+    st.sidebar.text(f"Вы вошли как: {st.session_state['username']}")
     if st.sidebar.button("Сменить пользователя"):
         cookies.delete('username')
-        st.session_state.clear()
+        st.session_state.pop('username', None)
         st.experimental_rerun()
 
-    if st.session_state['view'] == 'main':
+    if st.session_state['view'] == "main_menu":
         display_main_menu()
 
 if __name__ == "__main__":
