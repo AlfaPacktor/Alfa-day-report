@@ -256,6 +256,8 @@ def main():
             product_submenu_page("МП", PRODUCTS_MP)
         elif user_state['page'] == 'report':
             report_page()
+        elif user_state['page'] == 'report_rouble':
+        report_rouble_page()
 
 if __name__ == "__main__":
     main()
