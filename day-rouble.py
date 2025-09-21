@@ -257,7 +257,7 @@ def main():
         elif user_state['page'] == 'report':
             report_page()
         elif user_state['page'] == 'report_rouble':
-        report_rouble_page()
+            report_rouble_page()
 
 if __name__ == "__main__":
     main()
